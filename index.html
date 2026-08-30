@@ -1263,7 +1263,26 @@ function applyTheme(mode){
   try { localStorage.setItem("pp-viewer-theme", mode); } catch (e) { /* 保存できなくても動く */ }
 }
 
-/* ── 17. イベント ──────────────────────────────────────────────── */
+/* ── 17. 保存先 ────────────────────────────────────────────────── */
+
+/**
+ * claude.ai の Artifact として開かれている場合、ページからのダウンロードは
+ * ホスト側の保存機能を通す必要がある。通常のブラウザでは null を返し、
+ * 呼び出し元は a[download] にフォールバックする。
+ */
+let downloadHostCache;
+async function downloadHost(){
+  if (downloadHostCache !== undefined) return downloadHostCache;
+  downloadHostCache = null;
+  try {
+    if (window.claude && typeof window.claude.use === "function"){
+      downloadHostCache = await window.claude.use("downloads");
+    }
+  } catch (e) { downloadHostCache = null; }
+  return downloadHostCache;
+}
+
+/* ── 18. イベント ──────────────────────────────────────────────── */
 
 function wire(){
   const input = $("#file-input");
@@ -1351,11 +1370,24 @@ function wire(){
   });
   $("#more-btn").addEventListener("click", () => { state.limit += 120; renderLedger(); });
 
-  $("#export-btn").addEventListener("click", () => {
-    const blob = new Blob(["﻿" + buildExportCSV()], {type:"text/csv;charset=utf-8"});
+  $("#export-btn").addEventListener("click", async () => {
+    const btn = $("#export-btn");
+    const csv = "﻿" + buildExportCSV();
+    const filename = `paypay-明細-${ymd(new Date())}.csv`;
+    const flash = msg => {
+      btn.textContent = msg;
+      setTimeout(() => { btn.textContent = "CSVで書き出す"; }, 2000);
+    };
+    const host = await downloadHost();
+    if (host){                                   // claude.ai の Artifact で開いている場合
+      try { await host.save({filename, data:csv}); }
+      catch (err){ if (!err || err.code !== "declined") flash("保存できませんでした"); }
+      return;
+    }
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `paypay-明細-${ymd(new Date())}.csv`;
+    a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
@@ -1401,9 +1433,11 @@ function wire(){
   });
   ro.observe($("#monthly-plot"));
   ro.observe($("#weekday-plot"));
+
+  downloadHost();   // 保存先の判定を先に始めておく
 }
 
-/* ── 18. サンプルデータ ────────────────────────────────────────── */
+/* ── 19. サンプルデータ ────────────────────────────────────────── */
 
 const SAMPLE_CSV = `取引日,出金金額(円),入金金額(円),海外出金金額,通貨,変換レート(円),利用国,取引内容,取引先,取引方法,支払い区分,利用者,取引番号
 2026/08/28 19:41:02,1280,,,JPY,,日本,支払い,ファミリーマート 新宿三丁目店,PayPay残高,一括,本人,25082800112

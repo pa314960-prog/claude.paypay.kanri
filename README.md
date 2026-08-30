@@ -4,6 +4,13 @@ PayPay からダウンロードした取引履歴 CSV を、ブラウザだけ�
 `index.html` を開くだけで動きます。ビルドもサーバーも不要で、読み込んだ明細が
 どこかへ送信されることはありません。
 
+## 公開URL
+
+**https://pa314960-prog.github.io/claude.paypay.kanri/**
+
+GitHub Pages で公開しています（`main` ブランチのルート）。上の URL を開けばそのまま使えます。
+インストールもアカウント登録も不要です。
+
 ## 使い方
 
 1. PayPay の取引履歴を CSV でダウンロードする（アプリの取引履歴画面、または Web 版の利用明細）
@@ -52,6 +59,7 @@ CSV を持っていない場合は、画面の「サンプルデータで試す�
 
 ```
 index.html                 ツール本体（HTML / CSS / JavaScript）
+.nojekyll                  GitHub Pages で Jekyll の処理を通さないための空ファイル
 sample/paypay-sample.csv   動作確認用のサンプル明細
 scripts/build-artifact.js  Artifact 公開用の HTML を dist/ に生成する
 ```

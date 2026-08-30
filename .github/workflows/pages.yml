@@ -1,0 +1,42 @@
+name: Deploy to GitHub Pages
+
+# main への push で、リポジトリのルートをそのまま GitHub Pages に公開する。
+# configure-pages の enablement で、未設定なら Pages の有効化もここで行う。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Pages を有効化して設定を取得
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: 公開するファイルをまとめる
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Pages へデプロイ
+        id: deployment
+        uses: actions/deploy-pages@v4

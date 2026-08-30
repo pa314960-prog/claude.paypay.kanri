@@ -1,0 +1,1475 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PayPay 明細ビューア</title>
+<meta name="description" content="PayPayの取引履歴CSVを、ブラウザだけで集計・可視化する家計簿ビューア。データは端末の外に出ません。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600&family=Roboto+Mono:wght@400;500&display=swap">
+<style>
+/* ── tokens ──────────────────────────────────────────────────────────── */
+:root{
+  color-scheme: light;
+  --plane:#eef1ef;
+  --surface:#fbfcfb;
+  --surface-2:#f4f6f4;
+  --ink:#121816;
+  --ink-2:#4c5a56;
+  --ink-3:#7c8a86;
+  --rule:#dde3e0;
+  --rule-2:#c6d0cc;
+  --accent:#0f5b5f;
+  --accent-on:#ffffff;
+  --accent-soft:#e0edec;
+  --out:#e34948;
+  --in:#2a78d6;
+  --good:#0ca30c;
+  --bad:#d03b3b;
+  --shadow:0 1px 1px rgba(16,24,22,.04);
+
+  --font-ui:"Zen Kaku Gothic New", system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+  --font-display:"Zen Old Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --font-num:"Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --plane:#0d1110;
+    --surface:#191d1c;
+    --surface-2:#202523;
+    --ink:#eef2f0;
+    --ink-2:#a9b6b2;
+    --ink-3:#7f8d89;
+    --rule:#2b312f;
+    --rule-2:#3b423f;
+    --accent:#4fb3b0;
+    --accent-on:#07201f;
+    --accent-soft:#1c2c2b;
+    --out:#e66767;
+    --in:#3987e5;
+    --good:#0ca30c;
+    --bad:#e26a6a;
+    --shadow:0 1px 1px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --plane:#0d1110;
+  --surface:#191d1c;
+  --surface-2:#202523;
+  --ink:#eef2f0;
+  --ink-2:#a9b6b2;
+  --ink-3:#7f8d89;
+  --rule:#2b312f;
+  --rule-2:#3b423f;
+  --accent:#4fb3b0;
+  --accent-on:#07201f;
+  --accent-soft:#1c2c2b;
+  --out:#e66767;
+  --in:#3987e5;
+  --good:#0ca30c;
+  --bad:#e26a6a;
+  --shadow:0 1px 1px rgba(0,0,0,.3);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--plane);
+  color:var(--ink);
+  font-family:var(--font-ui);
+  font-size:14px;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0;text-wrap:balance;font-weight:600}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 72px}
+
+/* ── header : 通帳の見出し ───────────────────────────────────────────── */
+.masthead{
+  border-bottom:1px solid var(--rule-2);
+  background:var(--surface);
+}
+.masthead-inner{
+  max-width:1180px;margin:0 auto;padding:18px 20px 16px;
+  display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
+}
+.seal{
+  flex:none;width:38px;height:38px;border-radius:5px;
+  background:var(--accent);color:var(--accent-on);
+  display:grid;place-items:center;
+  font-family:var(--font-display);font-size:19px;line-height:1;letter-spacing:.02em;
+}
+.brand{flex:1 1 260px;min-width:0}
+.brand h1{
+  font-family:var(--font-display);font-size:23px;line-height:1.35;letter-spacing:.04em;
+}
+.brand p{margin:2px 0 0;color:var(--ink-2);font-size:12.5px}
+.masthead-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rule-double{height:3px;border-top:1px solid var(--rule-2);border-bottom:1px solid var(--rule-2);background:var(--surface)}
+
+/* ── controls ────────────────────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 13px;border:1px solid var(--rule-2);border-radius:6px;
+  background:var(--surface);color:var(--ink);
+  font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;
+}
+.btn:hover{background:var(--surface-2);border-color:var(--ink-3)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-on)}
+.btn-primary:hover{background:var(--accent);border-color:var(--accent);filter:brightness(1.08)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+
+input[type="text"],input[type="search"],input[type="date"],select{
+  padding:6px 9px;border:1px solid var(--rule-2);border-radius:6px;
+  background:var(--surface);font-size:13px;max-width:100%;
+}
+label{font-size:12px;color:var(--ink-2)}
+
+/* ── dropzone / empty state ─────────────────────────────────────────── */
+.intro{
+  margin-top:28px;background:var(--surface);border:1px solid var(--rule);
+  border-radius:10px;padding:34px 30px;box-shadow:var(--shadow);
+}
+.intro h2{font-family:var(--font-display);font-size:19px;letter-spacing:.03em}
+.dropzone{
+  margin-top:20px;border:1.5px dashed var(--rule-2);border-radius:9px;
+  padding:34px 20px;text-align:center;background:var(--surface-2);
+}
+.dropzone.is-over{border-color:var(--accent);background:var(--accent-soft)}
+.dropzone p{margin:0 0 14px;color:var(--ink-2)}
+.steps{margin:22px 0 0;padding:0;list-style:none;display:grid;gap:14px}
+.steps li{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start}
+.steps .no{
+  font-family:var(--font-num);font-size:12px;color:var(--accent);
+  border:1px solid var(--rule-2);border-radius:50%;width:24px;height:24px;
+  display:grid;place-items:center;
+}
+.steps p{margin:0;color:var(--ink-2);font-size:13px}
+.steps strong{color:var(--ink);font-weight:500;display:block;font-size:13.5px}
+.note{font-size:12px;color:var(--ink-3);margin-top:18px}
+
+/* ── filter bar ─────────────────────────────────────────────────────── */
+.filters{
+  position:sticky;top:0;z-index:20;margin-top:22px;
+  background:var(--surface);border:1px solid var(--rule);border-radius:10px;
+  padding:12px 14px;box-shadow:var(--shadow);
+}
+.filter-row{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center}
+.filter-row + .filter-row{margin-top:10px;padding-top:10px;border-top:1px solid var(--rule)}
+.field{display:flex;gap:6px;align-items:center}
+.segmented{display:inline-flex;border:1px solid var(--rule-2);border-radius:6px;overflow:hidden}
+.segmented button{
+  padding:5px 12px;border:0;background:var(--surface);font-size:12.5px;cursor:pointer;
+  border-left:1px solid var(--rule);
+}
+.segmented button:first-child{border-left:0}
+.segmented button[aria-pressed="true"]{background:var(--accent);color:var(--accent-on)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{
+  padding:3px 10px;border:1px solid var(--rule-2);border-radius:999px;
+  background:var(--surface);font-size:12px;cursor:pointer;color:var(--ink-2);
+}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:500}
+.chip .n{font-family:var(--font-num);font-size:11px;opacity:.75;margin-left:4px}
+.filter-summary{margin-left:auto;font-size:12px;color:var(--ink-3);font-family:var(--font-num)}
+
+/* ── stat tiles ─────────────────────────────────────────────────────── */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:14px;margin-top:18px}
+.tile{
+  background:var(--surface);border:1px solid var(--rule);border-radius:10px;
+  padding:14px 16px;box-shadow:var(--shadow);
+}
+.tile .label{font-size:12px;color:var(--ink-2);letter-spacing:.02em}
+.tile .value{font-size:23px;font-weight:700;line-height:1.35;letter-spacing:-.01em;white-space:nowrap}
+.tile .sub{font-size:11.5px;color:var(--ink-3)}
+.tile-hero{grid-column:span 2;border-color:var(--rule-2)}
+.tile-hero .value{font-size:44px;line-height:1.2;font-weight:700}
+@media (max-width:560px){.tile-hero{grid-column:span 1}.tile-hero .value{font-size:34px}}
+.delta{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500}
+.delta.up{color:var(--bad)}
+.delta.down{color:var(--good)}
+.delta .mark{font-family:var(--font-num)}
+
+/* ── cards & charts ─────────────────────────────────────────────────── */
+.grid{display:grid;gap:14px;margin-top:14px}
+.grid-2{grid-template-columns:2fr 1fr}
+@media (max-width:900px){.grid-2{grid-template-columns:1fr}}
+.card{
+  position:relative;
+  background:var(--surface);border:1px solid var(--rule);border-radius:10px;
+  padding:16px 18px 14px;box-shadow:var(--shadow);min-width:0;
+}
+.card-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.card-head h2{font-size:14.5px;font-weight:700;letter-spacing:.02em}
+.card-head .cap{font-size:12px;color:var(--ink-3)}
+.card-head .tools{margin-left:auto;display:flex;gap:6px;align-items:center}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2)}
+.legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.plot{position:relative;overflow-x:auto;overflow-y:hidden}
+.plot svg{display:block}
+.tick{fill:var(--ink-3);font-size:10px;font-family:var(--font-num)}
+.axis-line{stroke:var(--rule-2);stroke-width:1}
+.grid-line{stroke:var(--rule);stroke-width:1}
+.dlabel{fill:var(--ink-2);font-size:10.5px;font-family:var(--font-num);font-weight:500}
+.hit{fill:transparent;cursor:pointer}
+.hit:hover, .hit:focus-visible{fill:var(--ink);fill-opacity:.045}
+
+.tip{
+  position:absolute;z-index:30;pointer-events:none;opacity:0;transform:translate(-50%,-100%);
+  background:var(--surface);border:1px solid var(--rule-2);border-radius:7px;
+  padding:8px 10px;box-shadow:0 6px 20px -8px rgba(0,0,0,.35);
+  font-size:12px;white-space:nowrap;min-width:132px;
+}
+.tip.on{opacity:1}
+.tip .t-h{font-weight:700;margin-bottom:4px}
+.tip .t-r{display:flex;justify-content:space-between;gap:14px;color:var(--ink-2)}
+.tip .t-r b{color:var(--ink);font-family:var(--font-num);font-weight:500}
+.tip .t-r i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:5px}
+
+/* breakdown bars */
+.bars{display:grid;gap:2px;margin-top:6px}
+.bar-row{
+  display:grid;grid-template-columns:minmax(96px,26%) 1fr auto;gap:12px;align-items:center;
+  padding:5px 6px;border-radius:6px;cursor:default;
+}
+.bar-row:hover,.bar-row:focus-visible{background:var(--surface-2)}
+.bar-row .nm{
+  font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);
+}
+.bar-track{display:block;height:10px;background:var(--surface-2);border-radius:5px;min-width:20px}
+.bar-fill{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--out);min-width:2px}
+.bar-row .amt{font-family:var(--font-num);font-size:12.5px;font-variant-numeric:tabular-nums}
+.bar-row .amt .pc{color:var(--ink-3);font-size:11px;margin-left:6px}
+
+/* data tables inside cards */
+.datatable{width:100%;border-collapse:collapse;font-size:12.5px}
+.datatable th,.datatable td{padding:5px 8px;border-bottom:1px solid var(--rule);text-align:right}
+.datatable th:first-child,.datatable td:first-child{text-align:left}
+.datatable th{color:var(--ink-2);font-weight:500;font-size:11.5px}
+.datatable td.num{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.scroll-y{max-height:300px;overflow:auto}
+
+/* ── ledger table ───────────────────────────────────────────────────── */
+.ledger-wrap{overflow-x:auto;margin-top:6px}
+table.ledger{width:100%;border-collapse:collapse;font-size:13px}
+table.ledger th{
+  position:sticky;top:0;background:var(--surface);z-index:2;
+  text-align:left;font-weight:500;font-size:11.5px;color:var(--ink-2);letter-spacing:.04em;
+  padding:8px 10px;border-bottom:1px solid var(--rule-2);white-space:nowrap;
+}
+table.ledger th.sortable{cursor:pointer;user-select:none}
+table.ledger th.sortable:hover{color:var(--accent)}
+table.ledger th .ind{font-family:var(--font-num);font-size:10px;margin-left:3px;color:var(--accent)}
+table.ledger td{padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.ledger tbody tr:hover{background:var(--surface-2)}
+table.ledger .num{
+  text-align:right;font-family:var(--font-num);font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.amount-out{color:var(--ink)}
+.amount-in{color:var(--in);font-weight:500}
+.cell-date{white-space:nowrap;font-family:var(--font-num);font-size:12px;color:var(--ink-2)}
+.cell-name{min-width:180px}
+.cell-name .m{font-weight:500}
+.cell-name .c{display:block;font-size:11.5px;color:var(--ink-3)}
+.cat-chip{
+  display:inline-block;padding:1px 8px;border:1px solid var(--rule-2);border-radius:999px;
+  font-size:11px;color:var(--ink-2);white-space:nowrap;background:var(--surface-2);
+}
+.detail td{background:var(--surface-2);font-size:12px;color:var(--ink-2)}
+.detail dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 18px;margin:0}
+.detail dt{font-size:11px;color:var(--ink-3)}
+.detail dd{margin:0 0 6px;font-family:var(--font-num);font-size:12px;word-break:break-all}
+.more{display:flex;justify-content:center;padding:14px 0 2px}
+.empty-msg{padding:36px 10px;text-align:center;color:var(--ink-3)}
+
+.footer{margin-top:26px;font-size:11.5px;color:var(--ink-3);text-align:center;line-height:2}
+.warnbox{
+  margin-top:14px;border:1px solid var(--rule-2);border-left:3px solid var(--bad);
+  border-radius:7px;padding:10px 14px;background:var(--surface);font-size:12.5px;color:var(--ink-2);
+}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="seal" aria-hidden="true">明</div>
+    <div class="brand">
+      <h1>PayPay 明細ビューア</h1>
+      <p>ダウンロードした取引履歴CSVを読み込んで集計します。ファイルはブラウザ内だけで処理され、どこにも送信されません。</p>
+    </div>
+    <div class="masthead-actions">
+      <button class="btn btn-primary" id="pick-btn" type="button">CSVを読み込む</button>
+      <button class="btn" id="theme-btn" type="button" aria-label="表示テーマを切り替え">画面: 自動</button>
+      <input type="file" id="file-input" accept=".csv,text/csv" multiple hidden>
+    </div>
+  </div>
+</header>
+<div class="rule-double"></div>
+
+<main class="wrap">
+  <!-- 空の状態 -->
+  <section class="intro" id="intro">
+    <h2>CSVを読み込むと、支出の内訳がその場で見えます</h2>
+    <div class="dropzone" id="dropzone">
+      <p>ここにCSVファイルをドラッグ＆ドロップ<br>（複数ファイルをまとめて読み込めます。重複する取引は取引番号で除きます）</p>
+      <button class="btn btn-primary" id="pick-btn-2" type="button">ファイルを選ぶ</button>
+      <button class="btn" id="demo-btn" type="button">サンプルデータで試す</button>
+    </div>
+    <ol class="steps">
+      <li><span class="no">1</span><p><strong>PayPayの取引履歴をCSVでダウンロードする</strong>アプリの取引履歴画面、またはWeb版（PayPay残高の利用明細）から書き出せます。画面の位置はアプリのバージョンによって変わります。</p></li>
+      <li><span class="no">2</span><p><strong>このページにCSVを読み込む</strong>文字コードはUTF-8でもShift_JISでも自動判定します。列の並びが違っても見出し名で対応づけます。</p></li>
+      <li><span class="no">3</span><p><strong>期間・カテゴリ・キーワードで絞り込む</strong>絞り込んだ結果はそのままCSVで書き出せます。</p></li>
+    </ol>
+    <p class="note">読み込んだ明細はページを閉じると消えます。サーバーへの送信も保存も行いません（このページはオフラインでも動きます）。</p>
+    <div id="load-warnings"></div>
+  </section>
+
+  <!-- ダッシュボード -->
+  <div id="dash" hidden>
+    <section class="filters" aria-label="絞り込み">
+      <div class="filter-row">
+        <div class="field">
+          <label for="f-period">期間</label>
+          <select id="f-period">
+            <option value="all">全期間</option>
+            <option value="thism">今月</option>
+            <option value="lastm">先月</option>
+            <option value="3m">直近3か月</option>
+            <option value="6m">直近6か月</option>
+            <option value="12m">直近12か月</option>
+            <option value="custom">カスタム</option>
+          </select>
+        </div>
+        <div class="field"><label for="f-from">開始</label><input type="date" id="f-from"></div>
+        <div class="field"><label for="f-to">終了</label><input type="date" id="f-to"></div>
+        <div class="segmented" role="group" aria-label="取引の種別">
+          <button type="button" data-kind="all" aria-pressed="true">すべて</button>
+          <button type="button" data-kind="out" aria-pressed="false">支出</button>
+          <button type="button" data-kind="in" aria-pressed="false">入金</button>
+        </div>
+        <div class="field">
+          <label for="f-method">取引方法</label>
+          <select id="f-method"><option value="">すべて</option></select>
+        </div>
+        <div class="field">
+          <label for="f-q" class="visually-hidden">キーワード</label>
+          <input type="search" id="f-q" placeholder="店舗名・内容・取引番号で検索" size="24">
+        </div>
+        <button class="btn btn-sm" id="f-reset" type="button">条件をリセット</button>
+        <span class="filter-summary" id="f-summary"></span>
+      </div>
+      <div class="filter-row">
+        <label style="flex:none">カテゴリ</label>
+        <div class="chips" id="f-cats"></div>
+      </div>
+    </section>
+
+    <section class="tiles" id="tiles" aria-label="サマリー"></section>
+
+    <div class="grid grid-2">
+      <section class="card">
+        <div class="card-head">
+          <h2>月別の支出と入金</h2>
+          <span class="cap" id="monthly-cap"></span>
+          <div class="tools">
+            <div class="segmented" role="group" aria-label="月別の表示形式">
+              <button type="button" data-view="chart" data-target="monthly" aria-pressed="true">グラフ</button>
+              <button type="button" data-view="table" data-target="monthly" aria-pressed="false">表</button>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--out)"></i>支出</span>
+          <span><i style="background:var(--in)"></i>入金</span>
+        </div>
+        <div class="plot" id="monthly-plot"></div>
+        <div class="tip" id="monthly-tip"></div>
+        <div id="monthly-table" hidden></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>曜日別の支出</h2>
+          <div class="tools">
+            <div class="segmented" role="group" aria-label="曜日別の表示形式">
+              <button type="button" data-view="chart" data-target="weekday" aria-pressed="true">グラフ</button>
+              <button type="button" data-view="table" data-target="weekday" aria-pressed="false">表</button>
+            </div>
+          </div>
+        </div>
+        <div class="plot" id="weekday-plot"></div>
+        <div class="tip" id="weekday-tip"></div>
+        <div id="weekday-table" hidden></div>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>支出の内訳</h2>
+          <span class="cap" id="breakdown-cap"></span>
+          <div class="tools">
+            <div class="segmented" role="group" aria-label="内訳の集計軸">
+              <button type="button" data-dim="category" aria-pressed="true">カテゴリ</button>
+              <button type="button" data-dim="merchant" aria-pressed="false">取引先</button>
+              <button type="button" data-dim="method" aria-pressed="false">取引方法</button>
+            </div>
+          </div>
+        </div>
+        <div class="plot" id="breakdown-plot"></div>
+        <div class="tip" id="breakdown-tip"></div>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>明細</h2>
+          <span class="cap" id="ledger-cap"></span>
+          <div class="tools">
+            <button class="btn btn-sm" id="export-btn" type="button">CSVで書き出す</button>
+            <button class="btn btn-sm" id="copy-btn" type="button">クリップボードにコピー</button>
+          </div>
+        </div>
+        <div class="ledger-wrap">
+          <table class="ledger" id="ledger">
+            <thead><tr>
+              <th class="sortable" data-sort="date" scope="col">取引日</th>
+              <th class="sortable" data-sort="name" scope="col">取引先・内容</th>
+              <th scope="col">カテゴリ</th>
+              <th scope="col">取引方法</th>
+              <th class="sortable num" data-sort="out" scope="col">出金</th>
+              <th class="sortable num" data-sort="in" scope="col">入金</th>
+            </tr></thead>
+            <tbody id="ledger-body"></tbody>
+          </table>
+        </div>
+        <div class="more" id="ledger-more" hidden><button class="btn btn-sm" id="more-btn" type="button">さらに表示</button></div>
+      </section>
+    </div>
+
+    <p class="footer">
+      読み込んだデータはこのタブのメモリ上にのみ存在します。ページを再読み込みすると消えます。<br>
+      PayPay は PayPay株式会社の登録商標です。このツールは同社とは関係のない個人的なユーティリティです。
+    </p>
+  </div>
+</main>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════════════
+   PayPay 明細ビューア — すべての処理はブラウザ内で完結します。
+   外部への通信は一切ありません（Webフォントの取得を除く）。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 1. CSVの読み込み ────────────────────────────────────────────── */
+
+/** 文字コードを判定してテキスト化する（UTF-8 / Shift_JIS / EUC-JP）。 */
+function decodeBuffer(buf){
+  const bytes = new Uint8Array(buf);
+  if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF){
+    return new TextDecoder("utf-8").decode(bytes.subarray(3));
+  }
+  for (const enc of ["utf-8", "shift_jis", "euc-jp"]){
+    try { return new TextDecoder(enc, {fatal:true}).decode(bytes); } catch (e) { /* 次を試す */ }
+  }
+  return new TextDecoder("shift_jis").decode(bytes);
+}
+
+/** RFC4180 相当のCSVパーサ（引用符・改行入りセル対応）。 */
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  const s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (let i = 0; i < s.length; i++){
+    const c = s[i];
+    if (quoted){
+      if (c === '"'){
+        if (s[i+1] === '"'){ field += '"'; i++; }
+        else quoted = false;
+      } else field += c;
+    } else if (c === '"'){ quoted = true; }
+    else if (c === ","){ row.push(field); field = ""; }
+    else if (c === "\n"){ row.push(field); rows.push(row); row = []; field = ""; }
+    else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ""));
+}
+
+/** 見出し名のゆらぎを吸収するための正規化。 */
+function normHeader(h){
+  return String(h || "")
+    .replace(/^﻿/, "")
+    .replace(/[（(].*?[)）]/g, "")
+    .replace(/[\s　"']/g, "")
+    .replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFEE0))
+    .toLowerCase();
+}
+
+const FIELD_DEFS = [
+  {key:"date",     names:["取引日","取引日時","日付","利用日","ご利用日","利用年月日"]},
+  {key:"out",      names:["出金金額","出金","支払金額","ご利用金額","利用金額","お支払い金額"]},
+  {key:"in",       names:["入金金額","入金","受取金額","受取"]},
+  {key:"foreign",  names:["海外出金金額"]},
+  {key:"currency", names:["通貨"]},
+  {key:"rate",     names:["変換レート"]},
+  {key:"country",  names:["利用国"]},
+  {key:"content",  names:["取引内容","内容","摘要","種別"]},
+  {key:"merchant", names:["取引先","店舗名","利用店舗","支払先","加盟店名"]},
+  {key:"method",   names:["取引方法","支払い方法","支払方法","決済方法"]},
+  {key:"paytype",  names:["支払い区分","支払区分"]},
+  {key:"user",     names:["利用者","ユーザー","利用者名"]},
+  {key:"txid",     names:["取引番号","取引id","注文id","明細番号"]},
+  {key:"amount",   names:["金額","差引金額"]}
+];
+
+/** 見出し行を探して列の対応表をつくる。前置きの行があっても拾える。 */
+function detectHeader(rows){
+  const limit = Math.min(rows.length, 12);
+  for (let i = 0; i < limit; i++){
+    const cells = rows[i].map(normHeader);
+    const map = {};
+    for (const def of FIELD_DEFS){
+      const idx = cells.findIndex(c => c && def.names.some(n => c === n || c.startsWith(n)));
+      if (idx >= 0 && map[def.key] === undefined) map[def.key] = idx;
+    }
+    const hasDate = map.date !== undefined;
+    const hasAmount = map.out !== undefined || map.in !== undefined || map.amount !== undefined;
+    if (hasDate && hasAmount) return {index:i, map, headers:rows[i]};
+  }
+  return null;
+}
+
+function toNumber(v){
+  if (v === undefined || v === null) return 0;
+  const s = String(v).replace(/[¥￥,，\s　円]/g, "").replace(/[０-９．－]/g, d =>
+    String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+  if (s === "" || s === "-" || s === "―") return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseDate(v){
+  const s = String(v || "").trim();
+  const m = s.match(/(\d{4})[\/\-年.](\d{1,2})[\/\-月.](\d{1,2})日?(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/* ── 2. カテゴリの自動判定 ───────────────────────────────────────── */
+
+const CATEGORY_RULES = [
+  {name:"チャージ",         words:["チャージ","オートチャージ","atm","セブン銀行","ローソン銀行","入金"]},
+  {name:"送金・受け取り",   words:["送金","受け取","わりかん","割り勘","個人間","送る"]},
+  {name:"ポイント・特典",   words:["ポイント","ボーナス","キャッシュバック","特典","付与","還元"]},
+  {name:"コンビニ",         words:["セブン-イレブン","セブンイレブン","ファミリーマート","ローソン","ミニストップ","デイリーヤマザキ","セイコーマート","ニューデイズ","ポプラ"]},
+  {name:"スーパー・食料品", words:["イオン","西友","ライフ","マルエツ","サミット","ヤオコー","業務スーパー","オーケー","コープ","イトーヨーカ","ベルク","いなげや","東急ストア","マックスバリュ","スーパー","八百屋","精肉","鮮魚"]},
+  {name:"ドラッグ・日用品", words:["マツモトキヨシ","マツキヨ","ツルハ","ウエルシア","スギ薬局","ココカラ","サンドラッグ","ドラッグ","薬局","クリエイト"]},
+  {name:"飲食・カフェ",     words:["スターバックス","ドトール","タリーズ","コメダ","マクドナルド","モスバーガー","ケンタッキー","ミスタードーナツ","すき家","吉野家","松屋","サイゼリヤ","ガスト","丸亀","はなまる","日高屋","cafe","coffee","カフェ","珈琲","食堂","居酒屋","ラーメン","寿司","焼肉","レストラン","バル","酒場","弁当","鳥貴族","大戸屋","やよい軒","スシロー","焼鳥","串","そば","うどん","カレー","ピザ","バーガー","定食","ベーカリー","パン屋"]},
+  {name:"交通",             words:["jr","メトロ","タクシー","鉄道","バス","ｅｔｃ","etc","高速","駐車","パーキング","交通","航空","ana","jal","新幹線","モバイルsuica","pasmo","タイムズ"]},
+  {name:"ネット通販",       words:["yahoo","ヤフー","paypayモール","zozo","amazon","アマゾン","楽天","メルカリ","通販","askul","lohaco","ebookjapan","オンライン"]},
+  {name:"ショッピング",     words:["ユニクロ","gu","ドン・キホーテ","ドンキ","無印良品","ニトリ","ロフト","ハンズ","ビックカメラ","ヨドバシ","ヤマダ","ケーズデンキ","書店","本屋","tsutaya","しまむら","西松屋","雑貨","百貨店","カインズ","コーナン"]},
+  {name:"公共料金・通信",   words:["電気","ガス","水道","東京電力","関西電力","ソフトバンク","ドコモ","ｋｄｄｉ","kddi","ワイモバイル","linemo","楽天モバイル","請求書","税","国民健康保険","nhk","保険","年金","家賃","管理費"]},
+  {name:"エンタメ・サブスク",words:["netflix","spotify","youtube","apple","google","dazn","u-next","hulu","abema","ゲーム","映画","toho","カラオケ","steam","dmm","漫画","ライブ","チケット"]},
+  {name:"医療・美容",       words:["病院","クリニック","歯科","医院","調剤","美容","サロン","理容","ヘア","整体","接骨","マッサージ"]}
+];
+const OTHER_CATEGORY = "その他";
+
+function categorize(rec){
+  const hay = (rec.merchant + " " + rec.content).toLowerCase();
+  for (const rule of CATEGORY_RULES){
+    if (rule.words.some(w => hay.includes(w))) return rule.name;
+  }
+  return OTHER_CATEGORY;
+}
+
+/* ── 3. レコード化 ──────────────────────────────────────────────── */
+
+function buildRecords(text, fileName){
+  const rows = parseCSV(text);
+  if (!rows.length) return {records:[], error:`${fileName}: 中身が空でした。`};
+  const head = detectHeader(rows);
+  if (!head) return {records:[], error:`${fileName}: 取引日と金額の列が見つかりませんでした。PayPayの取引履歴CSVかどうか確認してください。`};
+
+  const {map, index} = head;
+  const records = [];
+  let skipped = 0;
+  for (let i = index + 1; i < rows.length; i++){
+    const r = rows[i];
+    const get = key => (map[key] === undefined ? "" : (r[map[key]] || "").trim());
+    const date = parseDate(get("date"));
+    if (!date){ skipped++; continue; }
+
+    let out = Math.abs(toNumber(get("out")));
+    let inc = Math.abs(toNumber(get("in")));
+    if (!out && !inc && map.amount !== undefined){
+      const a = toNumber(get("amount"));
+      if (a < 0) out = Math.abs(a); else inc = a;
+    }
+    if (!out && !inc) { skipped++; continue; }
+
+    const rec = {
+      date,
+      time: date.getTime(),
+      out, in: inc,
+      net: inc - out,
+      merchant: get("merchant"),
+      content: get("content"),
+      method: get("method") || "―",
+      paytype: get("paytype"),
+      user: get("user"),
+      txid: get("txid"),
+      currency: get("currency"),
+      country: get("country"),
+      foreign: get("foreign"),
+      rate: get("rate"),
+      file: fileName
+    };
+    rec.label = rec.merchant || rec.content || "（名称なし）";
+    rec.category = categorize(rec);
+    records.push(rec);
+  }
+  return {records, skipped};
+}
+
+/* ── 4. 状態 ────────────────────────────────────────────────────── */
+
+const state = {
+  all: [],
+  view: [],
+  seen: new Set(),
+  files: [],
+  filters: {period:"all", from:"", to:"", kind:"all", method:"", q:"", cats:new Set()},
+  sort: {key:"date", dir:"desc"},
+  dim: "category",
+  limit: 60
+};
+
+const yen = new Intl.NumberFormat("ja-JP", {style:"currency", currency:"JPY", maximumFractionDigits:0});
+const num = new Intl.NumberFormat("ja-JP");
+const fmtYen = v => yen.format(Math.round(v));
+/** 軸ラベル向けの短縮表記（1.2万 など）。 */
+function fmtShort(v){
+  const a = Math.abs(v);
+  if (a >= 100000000) return (v/100000000).toFixed(1).replace(/\.0$/,"") + "億";
+  if (a >= 10000) return (v/10000).toFixed(a >= 100000 ? 0 : 1).replace(/\.0$/,"") + "万";
+  return num.format(Math.round(v));
+}
+const pad2 = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const ym  = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+const fmtDate = d => `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())}`;
+const fmtDateTime = d => `${fmtDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+const WEEKDAYS = ["日","月","火","水","木","金","土"];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ── 5. 絞り込み ────────────────────────────────────────────────── */
+
+function periodRange(period){
+  const now = state.all.length ? new Date(Math.max(...state.all.map(r => r.time))) : new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const startOfMonth = (yy, mm) => new Date(yy, mm, 1);
+  switch (period){
+    case "thism": return [startOfMonth(y, m), null];
+    case "lastm": return [startOfMonth(y, m-1), new Date(y, m, 0, 23, 59, 59)];
+    case "3m":    return [startOfMonth(y, m-2), null];
+    case "6m":    return [startOfMonth(y, m-5), null];
+    case "12m":   return [startOfMonth(y, m-11), null];
+    default:      return [null, null];
+  }
+}
+
+function applyFilters(){
+  const f = state.filters;
+  let from = null, to = null;
+  if (f.period === "custom"){
+    if (f.from) from = new Date(f.from + "T00:00:00");
+    if (f.to)   to   = new Date(f.to + "T23:59:59");
+  } else {
+    [from, to] = periodRange(f.period);
+  }
+  const q = f.q.trim().toLowerCase();
+
+  state.view = state.all.filter(r => {
+    if (from && r.date < from) return false;
+    if (to && r.date > to) return false;
+    if (f.kind === "out" && !r.out) return false;
+    if (f.kind === "in" && !r.in) return false;
+    if (f.method && r.method !== f.method) return false;
+    if (f.cats.size && !f.cats.has(r.category)) return false;
+    if (q){
+      const hay = (r.label + " " + r.content + " " + r.merchant + " " + r.txid + " " + r.method).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  sortView();
+  state.limit = 60;
+}
+
+function sortView(){
+  const {key, dir} = state.sort;
+  const sign = dir === "asc" ? 1 : -1;
+  state.view.sort((a, b) => {
+    let d;
+    if (key === "name") d = a.label.localeCompare(b.label, "ja");
+    else if (key === "out") d = a.out - b.out;
+    else if (key === "in") d = a.in - b.in;
+    else d = a.time - b.time;
+    return d === 0 ? a.time - b.time : d * sign;
+  });
+}
+
+/* ── 6. 集計 ────────────────────────────────────────────────────── */
+
+function summarize(rows){
+  let out = 0, inc = 0;
+  for (const r of rows){ out += r.out; inc += r.in; }
+  const days = rows.length ? (Math.max(...rows.map(r => r.time)) - Math.min(...rows.map(r => r.time))) / 86400000 + 1 : 0;
+  return {out, inc, net: inc - out, count: rows.length, days};
+}
+
+function byMonth(rows){
+  const map = new Map();
+  for (const r of rows){
+    const k = ym(r.date);
+    if (!map.has(k)) map.set(k, {key:k, out:0, in:0, count:0});
+    const b = map.get(k); b.out += r.out; b.in += r.in; b.count++;
+  }
+  const keys = [...map.keys()].sort();
+  if (!keys.length) return [];
+  // 抜けている月も0で埋めて、時間の目盛りが歪まないようにする
+  const out = [];
+  const [sy, sm] = keys[0].split("-").map(Number);
+  const [ey, em] = keys[keys.length-1].split("-").map(Number);
+  for (let y = sy, m = sm; y < ey || (y === ey && m <= em); m++){
+    if (m > 12){ m = 1; y++; }
+    const k = `${y}-${pad2(m)}`;
+    out.push(map.get(k) || {key:k, out:0, in:0, count:0});
+  }
+  return out;
+}
+
+function byWeekday(rows){
+  const buckets = WEEKDAYS.map((w, i) => ({key:w, index:i, out:0, count:0}));
+  for (const r of rows){ if (r.out){ const b = buckets[r.date.getDay()]; b.out += r.out; b.count++; } }
+  return buckets;
+}
+
+function byDimension(rows, dim){
+  const map = new Map();
+  for (const r of rows){
+    if (!r.out) continue;
+    const k = dim === "category" ? r.category : dim === "merchant" ? r.label : r.method;
+    if (!map.has(k)) map.set(k, {key:k, out:0, count:0});
+    const b = map.get(k); b.out += r.out; b.count++;
+  }
+  return [...map.values()].sort((a, b) => b.out - a.out);
+}
+
+/* ── 7. 描画ヘルパー ────────────────────────────────────────────── */
+
+const $ = sel => document.querySelector(sel);
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs){
+  const el = document.createElementNS(NS, tag);
+  for (const k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) el.setAttribute(k, attrs[k]);
+  return el;
+}
+/** 上端だけ角丸の柱（下端は基線に接するので直角）。 */
+function topRoundedPath(x, y, w, h, r){
+  const rr = Math.max(0, Math.min(r, w / 2, h));
+  return `M${x},${y+h} L${x},${y+rr} Q${x},${y} ${x+rr},${y} L${x+w-rr},${y} Q${x+w},${y} ${x+w},${y+rr} L${x+w},${y+h} Z`;
+}
+/** きりのいい目盛り幅と上限を決める（1,000 / 2,000 のような値に丸める）。 */
+function axisScale(maxValue, targetTicks){
+  const t = targetTicks || 4;
+  const raw = Math.max(maxValue, 1) / t;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  const step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  const max = Math.ceil(Math.max(maxValue, 1) / step) * step;
+  return {max, step, ticks: Math.round(max / step)};
+}
+
+function showTip(tipEl, ev, html){
+  tipEl.innerHTML = html;
+  tipEl.classList.add("on");
+  const host = tipEl.offsetParent || tipEl.parentElement;
+  const rect = host.getBoundingClientRect();
+  const half = tipEl.offsetWidth / 2 + 4;
+  tipEl.style.left = Math.min(Math.max(ev.clientX - rect.left, half), Math.max(half, rect.width - half)) + "px";
+  tipEl.style.top = Math.max(ev.clientY - rect.top - 12, tipEl.offsetHeight + 6) + "px";
+}
+const hideTip = tipEl => tipEl.classList.remove("on");
+
+/* ── 8. サマリータイル ──────────────────────────────────────────── */
+
+function renderTiles(){
+  const s = summarize(state.view);
+  const months = byMonth(state.view);
+  const avgPerTx = s.count ? s.out / state.view.filter(r => r.out).length : 0;
+
+  let deltaHtml = "";
+  if (months.length >= 2){
+    const last = months[months.length-1], prev = months[months.length-2];
+    if (prev.out > 0){
+      const pct = (last.out - prev.out) / prev.out * 100;
+      const up = pct >= 0;
+      deltaHtml = `<div class="sub"><span class="delta ${up ? "up" : "down"}">
+        <span class="mark" aria-hidden="true">${up ? "▲" : "▼"}</span>前月比 ${up ? "+" : ""}${pct.toFixed(0)}%</span>
+        <span style="color:var(--ink-3)"> ・ ${esc(last.key.replace("-", "/"))}は ${fmtYen(last.out)}</span></div>`;
+    }
+  }
+  const period = state.view.length
+    ? `${fmtDate(new Date(Math.min(...state.view.map(r => r.time))))} 〜 ${fmtDate(new Date(Math.max(...state.view.map(r => r.time))))}`
+    : "―";
+
+  $("#tiles").innerHTML = `
+    <div class="tile tile-hero">
+      <div class="label">支出合計</div>
+      <div class="value">${fmtYen(s.out)}</div>
+      ${deltaHtml || `<div class="sub">${esc(period)}</div>`}
+    </div>
+    <div class="tile">
+      <div class="label">入金合計</div>
+      <div class="value">${fmtYen(s.inc)}</div>
+      <div class="sub">チャージ・受け取りなど</div>
+    </div>
+    <div class="tile">
+      <div class="label">収支</div>
+      <div class="value">${s.net >= 0 ? "+" : "−"}${fmtYen(Math.abs(s.net))}</div>
+      <div class="sub">入金 − 支出</div>
+    </div>
+    <div class="tile">
+      <div class="label">取引件数</div>
+      <div class="value">${num.format(s.count)}<span style="font-size:14px;font-weight:500"> 件</span></div>
+      <div class="sub">${months.length ? `${months.length}か月・月平均 ${(s.count/months.length).toFixed(1)}件` : "―"}</div>
+    </div>
+    <div class="tile">
+      <div class="label">1回あたりの支出</div>
+      <div class="value">${fmtYen(avgPerTx || 0)}</div>
+      <div class="sub">${s.days ? `1日あたり ${fmtYen(s.out / s.days)}` : "―"}</div>
+    </div>
+  `;
+}
+
+/* ── 9. 月別の柱グラフ ──────────────────────────────────────────── */
+
+function renderMonthly(){
+  const plot = $("#monthly-plot"), tip = $("#monthly-tip");
+  const data = byMonth(state.view);
+  [...plot.querySelectorAll("svg,.empty-msg")].forEach(n => n.remove());
+  $("#monthly-cap").textContent = data.length ? `${data.length}か月` : "";
+
+  if (!data.length){ plot.insertAdjacentHTML("beforeend", '<p class="empty-msg">該当する取引がありません</p>'); return; }
+
+  const pad = {t:22, r:10, b:28, l:48};
+  const height = 250;
+  const avail = Math.max(plot.clientWidth || 600, 260);
+  const bandW = Math.max(44, (avail - pad.l - pad.r) / data.length);
+  const width = Math.max(avail, pad.l + pad.r + bandW * data.length);
+  const plotH = height - pad.t - pad.b;
+  const scale = axisScale(Math.max(...data.flatMap(d => [d.out, d.in]), 1));
+  const max = scale.max;
+  const y = v => pad.t + plotH - (v / max) * plotH;
+
+  const svg = svgEl("svg", {width, height, viewBox:`0 0 ${width} ${height}`, role:"img",
+    "aria-label":"月ごとの支出と入金の柱グラフ"});
+
+  for (let i = 0; i <= scale.ticks; i++){
+    const v = scale.step * i, yy = y(v);
+    svg.appendChild(svgEl("line", {x1:pad.l, x2:width - pad.r, y1:yy, y2:yy, class: i ? "grid-line" : "axis-line"}));
+    const t = svgEl("text", {x:pad.l - 8, y:yy + 3, class:"tick", "text-anchor":"end"});
+    t.textContent = i ? fmtShort(v) : "0";
+    svg.appendChild(t);
+  }
+
+  const barW = Math.min(20, (bandW * 0.66 - 2) / 2);
+  const labelStep = Math.ceil(data.length / Math.max(1, Math.floor((width - pad.l - pad.r) / 56)));
+  const maxOutIdx = data.reduce((best, d, i) => d.out > data[best].out ? i : best, 0);
+
+  data.forEach((d, i) => {
+    const cx = pad.l + bandW * i + bandW / 2;
+    const x0 = cx - barW - 1;            // 2pxの隙間で2本を分ける
+    const x1 = cx + 1;
+    if (d.out > 0) svg.appendChild(svgEl("path", {d:topRoundedPath(x0, y(d.out), barW, pad.t + plotH - y(d.out), 4), fill:"var(--out)"}));
+    if (d.in > 0)  svg.appendChild(svgEl("path", {d:topRoundedPath(x1, y(d.in), barW, pad.t + plotH - y(d.in), 4), fill:"var(--in)"}));
+
+    if (i === maxOutIdx && d.out > 0){
+      const lab = svgEl("text", {x:x0 + barW / 2, y:y(d.out) - 7, class:"dlabel", "text-anchor":"middle"});
+      lab.textContent = fmtShort(d.out);
+      svg.appendChild(lab);
+    }
+
+    if (i % labelStep === 0 || i === data.length - 1){
+      const t = svgEl("text", {x:cx, y:height - 9, class:"tick", "text-anchor":"middle"});
+      const [yy, mm] = d.key.split("-");
+      t.textContent = (i === 0 || mm === "01") ? `${yy.slice(2)}/${mm}` : mm;
+      svg.appendChild(t);
+    }
+
+    const hit = svgEl("rect", {x:pad.l + bandW * i, y:pad.t, width:bandW, height:plotH, class:"hit",
+      tabindex:0, role:"button", "aria-label":`${d.key} 支出 ${fmtYen(d.out)} 入金 ${fmtYen(d.in)}`});
+    const html = `<div class="t-h">${d.key.replace("-", "年")}月</div>
+      <div class="t-r"><span><i style="background:var(--out)"></i>支出</span><b>${fmtYen(d.out)}</b></div>
+      <div class="t-r"><span><i style="background:var(--in)"></i>入金</span><b>${fmtYen(d.in)}</b></div>
+      <div class="t-r"><span>収支</span><b>${d.in - d.out >= 0 ? "+" : "−"}${fmtYen(Math.abs(d.in - d.out))}</b></div>
+      <div class="t-r"><span>件数</span><b>${d.count}</b></div>`;
+    hit.addEventListener("mousemove", e => showTip(tip, e, html));
+    hit.addEventListener("mouseleave", () => hideTip(tip));
+    hit.addEventListener("focus", e => {
+      const r = hit.getBoundingClientRect();
+      showTip(tip, {clientX:r.left + r.width / 2, clientY:r.top + 30}, html);
+    });
+    hit.addEventListener("blur", () => hideTip(tip));
+    hit.addEventListener("click", () => { drillMonth(d.key); });
+    svg.appendChild(hit);
+  });
+
+  plot.appendChild(svg);
+
+  $("#monthly-table").innerHTML = `<div class="scroll-y"><table class="datatable">
+    <thead><tr><th>月</th><th>支出</th><th>入金</th><th>収支</th><th>件数</th></tr></thead><tbody>
+    ${data.slice().reverse().map(d => `<tr><td>${d.key.replace("-", "/")}</td>
+      <td class="num">${fmtYen(d.out)}</td><td class="num">${fmtYen(d.in)}</td>
+      <td class="num">${d.in - d.out >= 0 ? "+" : "−"}${fmtYen(Math.abs(d.in - d.out))}</td>
+      <td class="num">${d.count}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+/** 柱をクリックしたらその月に絞り込む。 */
+function drillMonth(key){
+  const [y, m] = key.split("-").map(Number);
+  state.filters.period = "custom";
+  state.filters.from = ymd(new Date(y, m-1, 1));
+  state.filters.to = ymd(new Date(y, m, 0));
+  syncFilterUI();
+  refresh();
+}
+
+/* ── 10. 曜日別 ────────────────────────────────────────────────── */
+
+function renderWeekday(){
+  const plot = $("#weekday-plot"), tip = $("#weekday-tip");
+  const data = byWeekday(state.view);
+  [...plot.querySelectorAll("svg,.empty-msg")].forEach(n => n.remove());
+  if (!data.some(d => d.out > 0)){ plot.insertAdjacentHTML("beforeend", '<p class="empty-msg">支出データがありません</p>'); return; }
+
+  const pad = {t:22, r:8, b:26, l:44};
+  const height = 250;
+  const width = Math.max(plot.clientWidth || 320, 260);
+  const plotH = height - pad.t - pad.b;
+  const bandW = (width - pad.l - pad.r) / 7;
+  const scale = axisScale(Math.max(...data.map(d => d.out), 1));
+  const max = scale.max;
+  const y = v => pad.t + plotH - (v / max) * plotH;
+  const barW = Math.min(20, bandW * 0.5);
+  const peak = data.reduce((b, d, i) => d.out > data[b].out ? i : b, 0);
+
+  const svg = svgEl("svg", {width, height, viewBox:`0 0 ${width} ${height}`, role:"img",
+    "aria-label":"曜日ごとの支出合計"});
+  for (let i = 0; i <= scale.ticks; i++){
+    const v = scale.step * i, yy = y(v);
+    svg.appendChild(svgEl("line", {x1:pad.l, x2:width - pad.r, y1:yy, y2:yy, class:i ? "grid-line" : "axis-line"}));
+    const t = svgEl("text", {x:pad.l - 8, y:yy + 3, class:"tick", "text-anchor":"end"});
+    t.textContent = i ? fmtShort(v) : "0";
+    svg.appendChild(t);
+  }
+  data.forEach((d, i) => {
+    const cx = pad.l + bandW * i + bandW / 2;
+    if (d.out > 0) svg.appendChild(svgEl("path", {d:topRoundedPath(cx - barW/2, y(d.out), barW, pad.t + plotH - y(d.out), 4), fill:"var(--out)"}));
+    if (i === peak && d.out > 0){
+      const lab = svgEl("text", {x:cx, y:y(d.out) - 7, class:"dlabel", "text-anchor":"middle"});
+      lab.textContent = fmtShort(d.out);
+      svg.appendChild(lab);
+    }
+    const t = svgEl("text", {x:cx, y:height - 8, class:"tick", "text-anchor":"middle"});
+    t.textContent = d.key;
+    svg.appendChild(t);
+
+    const hit = svgEl("rect", {x:pad.l + bandW*i, y:pad.t, width:bandW, height:plotH, class:"hit",
+      tabindex:0, role:"img", "aria-label":`${d.key}曜日 支出 ${fmtYen(d.out)} ${d.count}件`});
+    const html = `<div class="t-h">${d.key}曜日</div>
+      <div class="t-r"><span>支出</span><b>${fmtYen(d.out)}</b></div>
+      <div class="t-r"><span>件数</span><b>${d.count}</b></div>
+      <div class="t-r"><span>平均</span><b>${fmtYen(d.count ? d.out/d.count : 0)}</b></div>`;
+    hit.addEventListener("mousemove", e => showTip(tip, e, html));
+    hit.addEventListener("mouseleave", () => hideTip(tip));
+    hit.addEventListener("focus", () => {
+      const r = hit.getBoundingClientRect();
+      showTip(tip, {clientX:r.left + r.width/2, clientY:r.top + 30}, html);
+    });
+    hit.addEventListener("blur", () => hideTip(tip));
+    svg.appendChild(hit);
+  });
+  plot.appendChild(svg);
+
+  $("#weekday-table").innerHTML = `<table class="datatable">
+    <thead><tr><th>曜日</th><th>支出</th><th>件数</th></tr></thead><tbody>
+    ${data.map(d => `<tr><td>${d.key}</td><td class="num">${fmtYen(d.out)}</td><td class="num">${d.count}</td></tr>`).join("")}
+    </tbody></table>`;
+}
+
+/* ── 11. 内訳（横棒） ──────────────────────────────────────────── */
+
+function renderBreakdown(){
+  const plot = $("#breakdown-plot"), tip = $("#breakdown-tip");
+  const all = byDimension(state.view, state.dim);
+  const total = all.reduce((s, d) => s + d.out, 0);
+  const LIMIT = 12;
+  let data = all;
+  if (all.length > LIMIT){
+    const rest = all.slice(LIMIT - 1);
+    data = all.slice(0, LIMIT - 1).concat([{
+      key:`その他 ${rest.length}件`, out:rest.reduce((s,d) => s + d.out, 0),
+      count:rest.reduce((s,d) => s + d.count, 0), isRest:true
+    }]);
+  }
+  $("#breakdown-cap").textContent = total ? `支出合計 ${fmtYen(total)}` : "";
+  const rows = plot.querySelector(".bars");
+  if (rows) rows.remove();
+  const empty = plot.querySelector(".empty-msg");
+  if (empty) empty.remove();
+
+  if (!data.length){ plot.insertAdjacentHTML("beforeend", '<p class="empty-msg">支出データがありません</p>'); return; }
+
+  const max = Math.max(...data.map(d => d.out), 1);
+  const box = document.createElement("div");
+  box.className = "bars";
+  box.innerHTML = data.map(d => {
+    const pc = total ? d.out / total * 100 : 0;
+    return `<div class="bar-row" tabindex="0" data-key="${esc(d.key)}" data-rest="${d.isRest ? 1 : 0}"
+        role="img" aria-label="${esc(d.key)} ${fmtYen(d.out)} 全体の${pc.toFixed(1)}パーセント ${d.count}件">
+      <span class="nm" title="${esc(d.key)}">${esc(d.key)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${Math.max(2, d.out / max * 100)}%"></span></span>
+      <span class="amt">${fmtYen(d.out)}<span class="pc">${pc.toFixed(1)}%</span></span>
+    </div>`;
+  }).join("");
+
+  box.addEventListener("mousemove", e => {
+    const row = e.target.closest(".bar-row");
+    if (!row) return hideTip(tip);
+    const d = data.find(x => x.key === row.dataset.key);
+    if (!d) return;
+    showTip(tip, e, `<div class="t-h">${esc(d.key)}</div>
+      <div class="t-r"><span>支出</span><b>${fmtYen(d.out)}</b></div>
+      <div class="t-r"><span>件数</span><b>${d.count}</b></div>
+      <div class="t-r"><span>平均</span><b>${fmtYen(d.out / d.count)}</b></div>
+      <div class="t-r"><span>構成比</span><b>${(d.out / total * 100).toFixed(1)}%</b></div>`);
+  });
+  box.addEventListener("mouseleave", () => hideTip(tip));
+  box.addEventListener("click", e => {
+    const row = e.target.closest(".bar-row");
+    if (!row || row.dataset.rest === "1") return;
+    if (state.dim === "category"){
+      const set = state.filters.cats;
+      set.has(row.dataset.key) ? set.delete(row.dataset.key) : set.add(row.dataset.key);
+    } else if (state.dim === "method"){
+      state.filters.method = state.filters.method === row.dataset.key ? "" : row.dataset.key;
+    } else {
+      state.filters.q = state.filters.q === row.dataset.key ? "" : row.dataset.key;
+    }
+    syncFilterUI();
+    refresh();
+  });
+  plot.appendChild(box);
+}
+
+/* ── 12. 明細テーブル ──────────────────────────────────────────── */
+
+function renderLedger(){
+  const body = $("#ledger-body");
+  const rows = state.view.slice(0, state.limit);
+  $("#ledger-cap").textContent = `${num.format(state.view.length)}件中 ${num.format(rows.length)}件を表示`;
+
+  if (!state.view.length){
+    body.innerHTML = '<tr><td colspan="6" class="empty-msg">条件に合う取引がありません。期間やキーワードを見直してください。</td></tr>';
+    $("#ledger-more").hidden = true;
+    return;
+  }
+  body.innerHTML = rows.map((r, i) => `
+    <tr data-i="${i}" tabindex="0">
+      <td class="cell-date">${fmtDateTime(r.date)}<br><span style="color:var(--ink-3)">${WEEKDAYS[r.date.getDay()]}</span></td>
+      <td class="cell-name"><span class="m">${esc(r.label)}</span>
+        ${r.content && r.content !== r.label ? `<span class="c">${esc(r.content)}</span>` : ""}</td>
+      <td><span class="cat-chip">${esc(r.category)}</span></td>
+      <td style="font-size:12px;color:var(--ink-2)">${esc(r.method)}</td>
+      <td class="num amount-out">${r.out ? fmtYen(r.out) : ""}</td>
+      <td class="num amount-in">${r.in ? fmtYen(r.in) : ""}</td>
+    </tr>`).join("");
+
+  $("#ledger-more").hidden = state.view.length <= state.limit;
+  $("#more-btn").textContent = `さらに表示（残り ${num.format(state.view.length - state.limit)}件）`;
+
+  document.querySelectorAll("#ledger th.sortable").forEach(th => {
+    const active = th.dataset.sort === state.sort.key;
+    th.setAttribute("aria-sort", active ? (state.sort.dir === "asc" ? "ascending" : "descending") : "none");
+    const old = th.querySelector(".ind");
+    if (old) old.remove();
+    if (active) th.insertAdjacentHTML("beforeend", `<span class="ind">${state.sort.dir === "asc" ? "▲" : "▼"}</span>`);
+  });
+}
+
+/** 行を開いて生データを見せる。 */
+function toggleDetail(tr){
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains("detail")){ next.remove(); return; }
+  document.querySelectorAll("#ledger tr.detail").forEach(n => n.remove());
+  const r = state.view[+tr.dataset.i];
+  if (!r) return;
+  const items = [
+    ["取引番号", r.txid], ["支払い区分", r.paytype], ["利用者", r.user],
+    ["通貨", r.currency], ["利用国", r.country], ["海外出金金額", r.foreign],
+    ["変換レート", r.rate], ["取引内容", r.content], ["読み込み元", r.file]
+  ].filter(([, v]) => v);
+  const row = document.createElement("tr");
+  row.className = "detail";
+  row.innerHTML = `<td colspan="6"><dl>${items.map(([k, v]) =>
+    `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></td>`;
+  tr.after(row);
+}
+
+/* ── 13. 画面の更新 ────────────────────────────────────────────── */
+
+function refresh(){
+  applyFilters();
+  renderTiles();
+  renderMonthly();
+  renderWeekday();
+  renderBreakdown();
+  renderLedger();
+  const f = state.filters;
+  const on = [];
+  if (f.period !== "all") on.push("期間");
+  if (f.kind !== "all") on.push(f.kind === "out" ? "支出のみ" : "入金のみ");
+  if (f.cats.size) on.push(`カテゴリ${f.cats.size}件`);
+  if (f.method) on.push("取引方法");
+  if (f.q) on.push("キーワード");
+  $("#f-summary").textContent = `${num.format(state.view.length)} / ${num.format(state.all.length)}件` +
+    (on.length ? `（${on.join("・")}）` : "");
+}
+
+function syncFilterUI(){
+  const f = state.filters;
+  $("#f-period").value = f.period;
+  $("#f-from").value = f.from;
+  $("#f-to").value = f.to;
+  $("#f-q").value = f.q;
+  $("#f-method").value = f.method;
+  document.querySelectorAll("[data-kind]").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.kind === f.kind)));
+  document.querySelectorAll("#f-cats .chip").forEach(c =>
+    c.setAttribute("aria-pressed", String(f.cats.has(c.dataset.cat))));
+}
+
+function rebuildFilterOptions(){
+  const methods = [...new Set(state.all.map(r => r.method))].filter(Boolean).sort();
+  $("#f-method").innerHTML = '<option value="">すべて</option>' +
+    methods.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
+
+  const counts = new Map();
+  for (const r of state.all) counts.set(r.category, (counts.get(r.category) || 0) + 1);
+  const cats = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  $("#f-cats").innerHTML = cats.map(([c, n]) =>
+    `<button type="button" class="chip" data-cat="${esc(c)}" aria-pressed="false">${esc(c)}<span class="n">${n}</span></button>`).join("");
+  syncFilterUI();
+}
+
+/* ── 14. ファイルの読み込み ────────────────────────────────────── */
+
+async function loadFiles(fileList){
+  const messages = [];
+  let added = 0, dupes = 0;
+  for (const file of fileList){
+    let text;
+    try { text = decodeBuffer(await file.arrayBuffer()); }
+    catch (e){ messages.push(`${file.name}: 読み込みに失敗しました。`); continue; }
+    const {records, error, skipped} = buildRecords(text, file.name);
+    if (error){ messages.push(error); continue; }
+    for (const r of records){
+      const key = r.txid || `${r.time}|${r.out}|${r.in}|${r.label}`;
+      if (state.seen.has(key)){ dupes++; continue; }
+      state.seen.add(key);
+      state.all.push(r);
+      added++;
+    }
+    if (skipped) messages.push(`${file.name}: 日付か金額を読み取れない ${skipped}行 を飛ばしました（小計行など）。`);
+    state.files.push(file.name);
+  }
+  if (dupes) messages.push(`重複していた ${dupes}件 を取り込みませんでした。`);
+  if (!added && !state.all.length) messages.push("取り込めた取引がありませんでした。PayPayの取引履歴CSVかどうか確認してください。");
+
+  showMessages(messages);
+  if (!state.all.length) return;
+
+  state.all.sort((a, b) => b.time - a.time);
+  $("#intro").hidden = true;
+  $("#dash").hidden = false;
+  const warn = $("#load-warnings");
+  if (warn && warn.parentElement !== $("#dash")) $("#dash").prepend(warn);
+  rebuildFilterOptions();
+  refresh();
+}
+
+function showMessages(messages){
+  const box = $("#load-warnings");
+  box.innerHTML = messages.length
+    ? `<div class="warnbox">${messages.map(esc).join("<br>")}</div>` : "";
+}
+
+/* ── 15. 書き出し ──────────────────────────────────────────────── */
+
+const EXPORT_COLS = [
+  ["取引日", r => fmtDateTime(r.date)],
+  ["出金金額(円)", r => r.out || ""],
+  ["入金金額(円)", r => r.in || ""],
+  ["カテゴリ", r => r.category],
+  ["取引内容", r => r.content],
+  ["取引先", r => r.merchant],
+  ["取引方法", r => r.method],
+  ["支払い区分", r => r.paytype],
+  ["取引番号", r => r.txid]
+];
+function buildExportCSV(){
+  const q = v => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [EXPORT_COLS.map(c => c[0]).join(",")]
+    .concat(state.view.map(r => EXPORT_COLS.map(c => q(c[1](r))).join(",")))
+    .join("\r\n");
+}
+
+/* ── 16. テーマ ────────────────────────────────────────────────── */
+
+const THEMES = [["auto", "自動"], ["light", "明るい"], ["dark", "暗い"]];
+function applyTheme(mode){
+  if (mode === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", mode);
+  $("#theme-btn").textContent = "画面: " + (THEMES.find(t => t[0] === mode) || THEMES[0])[1];
+  try { localStorage.setItem("pp-viewer-theme", mode); } catch (e) { /* 保存できなくても動く */ }
+}
+
+/* ── 17. イベント ──────────────────────────────────────────────── */
+
+function wire(){
+  const input = $("#file-input");
+  $("#pick-btn").addEventListener("click", () => input.click());
+  $("#pick-btn-2").addEventListener("click", () => input.click());
+  input.addEventListener("change", () => { if (input.files.length){ loadFiles([...input.files]); input.value = ""; } });
+  $("#demo-btn").addEventListener("click", () => {
+    const blob = new File([SAMPLE_CSV], "サンプル明細.csv", {type:"text/csv"});
+    loadFiles([blob]);
+  });
+
+  const dz = $("#dropzone");
+  ["dragenter", "dragover"].forEach(ev => window.addEventListener(ev, e => {
+    e.preventDefault(); dz.classList.add("is-over");
+  }));
+  ["dragleave", "drop"].forEach(ev => window.addEventListener(ev, e => {
+    e.preventDefault(); if (ev === "drop" || e.target === document.documentElement) dz.classList.remove("is-over");
+  }));
+  window.addEventListener("drop", e => {
+    const files = [...(e.dataTransfer?.files || [])].filter(f => /\.csv$/i.test(f.name) || f.type === "text/csv");
+    if (files.length) loadFiles(files);
+  });
+
+  $("#f-period").addEventListener("change", e => {
+    state.filters.period = e.target.value;
+    if (e.target.value !== "custom"){ state.filters.from = ""; state.filters.to = ""; syncFilterUI(); }
+    refresh();
+  });
+  ["#f-from", "#f-to"].forEach(sel => $(sel).addEventListener("change", () => {
+    state.filters.from = $("#f-from").value;
+    state.filters.to = $("#f-to").value;
+    state.filters.period = "custom";
+    syncFilterUI();
+    refresh();
+  }));
+  $("#f-method").addEventListener("change", e => { state.filters.method = e.target.value; refresh(); });
+  let qTimer;
+  $("#f-q").addEventListener("input", e => {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => { state.filters.q = e.target.value; refresh(); }, 180);
+  });
+  document.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => {
+    state.filters.kind = b.dataset.kind; syncFilterUI(); refresh();
+  }));
+  $("#f-cats").addEventListener("click", e => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    const set = state.filters.cats;
+    set.has(chip.dataset.cat) ? set.delete(chip.dataset.cat) : set.add(chip.dataset.cat);
+    syncFilterUI(); refresh();
+  });
+  $("#f-reset").addEventListener("click", () => {
+    state.filters = {period:"all", from:"", to:"", kind:"all", method:"", q:"", cats:new Set()};
+    syncFilterUI(); refresh();
+  });
+
+  document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => {
+    const target = b.dataset.target, view = b.dataset.view;
+    document.querySelectorAll(`[data-target="${target}"]`).forEach(x =>
+      x.setAttribute("aria-pressed", String(x.dataset.view === view)));
+    $(`#${target}-plot`).hidden = view !== "chart";
+    $(`#${target}-table`).hidden = view !== "table";
+    if (view === "chart") (target === "monthly" ? renderMonthly : renderWeekday)();
+  }));
+  document.querySelectorAll("[data-dim]").forEach(b => b.addEventListener("click", () => {
+    state.dim = b.dataset.dim;
+    document.querySelectorAll("[data-dim]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    renderBreakdown();
+  }));
+
+  document.querySelectorAll("#ledger th.sortable").forEach(th => th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (state.sort.key === key) state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+    else state.sort = {key, dir: key === "name" ? "asc" : "desc"};
+    sortView(); renderLedger();
+  }));
+  $("#ledger-body").addEventListener("click", e => {
+    const tr = e.target.closest("tr[data-i]");
+    if (tr) toggleDetail(tr);
+  });
+  $("#ledger-body").addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const tr = e.target.closest("tr[data-i]");
+    if (tr){ e.preventDefault(); toggleDetail(tr); }
+  });
+  $("#more-btn").addEventListener("click", () => { state.limit += 120; renderLedger(); });
+
+  $("#export-btn").addEventListener("click", () => {
+    const blob = new Blob(["﻿" + buildExportCSV()], {type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `paypay-明細-${ymd(new Date())}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $("#copy-btn").addEventListener("click", async () => {
+    const btn = $("#copy-btn"), text = buildExportCSV();
+    try { await navigator.clipboard.writeText(text); }
+    catch (e){
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e2) { /* 失敗しても続行 */ }
+      ta.remove();
+    }
+    btn.textContent = "コピーしました";
+    setTimeout(() => { btn.textContent = "クリップボードにコピー"; }, 1600);
+  });
+
+  let themeIdx = 0;
+  try {
+    const saved = localStorage.getItem("pp-viewer-theme");
+    const i = THEMES.findIndex(t => t[0] === saved);
+    if (i >= 0) themeIdx = i;
+  } catch (e) { /* 読めなくても既定で動く */ }
+  applyTheme(THEMES[themeIdx][0]);
+  $("#theme-btn").addEventListener("click", () => {
+    themeIdx = (themeIdx + 1) % THEMES.length;
+    applyTheme(THEMES[themeIdx][0]);
+  });
+
+  // 幅が変わったらグラフだけ描き直す
+  let rt;
+  const ro = new ResizeObserver(entries => {
+    clearTimeout(rt);
+    rt = setTimeout(() => {
+      for (const en of entries){
+        const w = Math.round(en.contentRect.width);
+        if (en.target.dataset.w === String(w)) continue;
+        en.target.dataset.w = String(w);
+        if (!state.view.length) continue;
+        if (en.target.id === "monthly-plot" && !en.target.hidden) renderMonthly();
+        if (en.target.id === "weekday-plot" && !en.target.hidden) renderWeekday();
+      }
+    }, 120);
+  });
+  ro.observe($("#monthly-plot"));
+  ro.observe($("#weekday-plot"));
+}
+
+/* ── 18. サンプルデータ ────────────────────────────────────────── */
+
+const SAMPLE_CSV = `取引日,出金金額(円),入金金額(円),海外出金金額,通貨,変換レート(円),利用国,取引内容,取引先,取引方法,支払い区分,利用者,取引番号
+2026/08/28 19:41:02,1280,,,JPY,,日本,支払い,ファミリーマート 新宿三丁目店,PayPay残高,一括,本人,25082800112
+2026/08/27 08:12:33,168,,,JPY,,日本,支払い,セブン-イレブン 神田駅前店,PayPay残高,一括,本人,25082700231
+2026/08/26 21:03:11,4820,,,JPY,,日本,支払い,ライフ 早稲田店,PayPayあと払い,一括,本人,25082600874
+2026/08/25 12:30:45,980,,,JPY,,日本,支払い,丸亀製麺 大手町店,PayPay残高,一括,本人,25082500661
+2026/08/24 17:22:09,,10000,,JPY,,日本,チャージ,銀行口座からのチャージ,銀行口座,,本人,25082400020
+2026/08/23 14:05:51,3300,,,JPY,,日本,支払い,ユニクロ 池袋東口店,PayPay残高,一括,本人,25082300415
+2026/08/22 09:47:12,220,,,JPY,,日本,支払い,ドトールコーヒー 秋葉原店,PayPay残高,一括,本人,25082200188
+2026/08/20 20:15:38,6480,,,JPY,,日本,支払い,ヤフーショッピング,PayPayあと払い,一括,本人,25082000733
+2026/08/18 07:55:04,1500,,,JPY,,日本,支払い,東京メトロ モバイルチケット,PayPay残高,一括,本人,25081800097
+2026/08/16 13:12:27,2760,,,JPY,,日本,支払い,マツモトキヨシ 高田馬場店,PayPay残高,一括,本人,25081600552
+2026/08/14 19:38:16,3980,,,JPY,,日本,支払い,鳥貴族 新宿西口店,PayPay残高,一括,本人,25081400919
+2026/08/12 11:02:44,,320,,JPY,,日本,ポイント特典,PayPayポイント付与,ポイント,,本人,25081200004
+2026/08/10 18:44:52,1180,,,JPY,,日本,支払い,ローソン 早稲田通り店,PayPay残高,一括,本人,25081000377
+2026/08/07 21:20:31,1490,,,JPY,,日本,支払い,Netflix,PayPayあと払い,一括,本人,25080700612
+2026/08/05 12:48:19,860,,,JPY,,日本,支払い,スターバックス 丸の内店,PayPay残高,一括,本人,25080500240
+2026/08/03 16:31:07,,3000,,JPY,,日本,受け取り,友人からの送金,個人間送金,,本人,25080300011
+2026/08/01 10:15:22,9800,,,JPY,,日本,請求書支払い,東京電力エナジーパートナー,PayPay残高,一括,本人,25080100066
+2026/07/29 19:26:40,1620,,,JPY,,日本,支払い,セブン-イレブン 九段下店,PayPay残高,一括,本人,25072900488
+2026/07/27 15:04:55,5240,,,JPY,,日本,支払い,イオン 板橋店,PayPayあと払い,一括,本人,25072700701
+2026/07/25 08:33:18,,15000,,JPY,,日本,チャージ,銀行口座からのチャージ,銀行口座,,本人,25072500018
+2026/07/23 20:11:36,2980,,,JPY,,日本,支払い,ドン・キホーテ 新宿店,PayPay残高,一括,本人,25072300845
+2026/07/21 12:57:29,1050,,,JPY,,日本,支払い,マクドナルド 飯田橋店,PayPay残高,一括,本人,25072100322
+2026/07/19 18:02:13,3400,,,JPY,,日本,支払い,ビックカメラ 有楽町店,PayPayあと払い,一括,本人,25071900590
+2026/07/17 09:21:48,190,,,JPY,,日本,支払い,ニューデイズ 御茶ノ水店,PayPay残高,一括,本人,25071700134
+2026/07/15 21:39:02,4560,,,JPY,,日本,支払い,焼肉ライク 池袋店,PayPay残高,一括,本人,25071500967
+2026/07/12 14:18:55,1280,,,JPY,,日本,支払い,ツルハドラッグ 神楽坂店,PayPay残高,一括,本人,25071200409
+2026/07/09 11:44:20,780,,,JPY,,日本,支払い,タリーズコーヒー 水道橋店,PayPay残高,一括,本人,25070900255
+2026/07/06 19:55:41,2240,,,JPY,,日本,支払い,ライフ 早稲田店,PayPay残高,一括,本人,25070600684
+2026/07/03 08:09:33,1200,,,JPY,,日本,支払い,タイムズパーキング 新宿,PayPay残高,一括,本人,25070300121
+2026/07/01 10:05:11,8600,,,JPY,,日本,請求書支払い,東京ガス,PayPay残高,一括,本人,25070100059
+2026/06/28 20:41:07,3120,,,JPY,,日本,支払い,サイゼリヤ 高田馬場店,PayPay残高,一括,本人,25062800812
+2026/06/26 13:22:44,1980,,,JPY,,日本,支払い,無印良品 有楽町店,PayPayあと払い,一括,本人,25062600533
+2026/06/24 08:47:52,168,,,JPY,,日本,支払い,セブン-イレブン 神田駅前店,PayPay残高,一括,本人,25062400176
+2026/06/22 17:30:29,,20000,,JPY,,日本,チャージ,セブン銀行ATMからのチャージ,ATM,,本人,25062200015
+2026/06/20 12:11:38,1340,,,JPY,,日本,支払い,吉野家 三田店,PayPay残高,一括,本人,25062000348
+2026/06/17 21:04:16,2680,,,JPY,,日本,支払い,ウエルシア 中野店,PayPay残高,一括,本人,25061700729
+2026/06/14 15:52:03,12800,,,JPY,,日本,支払い,ZOZOTOWN,PayPayあと払い,一括,本人,25061400901
+2026/06/11 09:36:47,220,,,JPY,,日本,支払い,ドトールコーヒー 秋葉原店,PayPay残高,一括,本人,25061100162
+2026/06/08 18:25:31,4380,,,JPY,,日本,支払い,西友 中野店,PayPay残高,一括,本人,25060800604
+2026/06/05 22:13:09,1490,,,JPY,,日本,支払い,Netflix,PayPayあと払い,一括,本人,25060500288
+2026/06/02 10:02:55,9200,,,JPY,,日本,請求書支払い,東京電力エナジーパートナー,PayPay残高,一括,本人,25060200048
+2026/05/30 19:18:24,2260,,,JPY,,日本,支払い,ファミリーマート 新宿三丁目店,PayPay残高,一括,本人,25053000751
+2026/05/27 12:45:11,1180,,,JPY,,日本,支払い,松屋 早稲田店,PayPay残高,一括,本人,25052700330
+2026/05/24 16:07:39,7400,,,JPY,,日本,支払い,ヨドバシカメラ 新宿西口店,PayPayあと払い,一括,本人,25052400878
+2026/05/21 08:29:02,,12000,,JPY,,日本,チャージ,銀行口座からのチャージ,銀行口座,,本人,25052100022
+2026/05/18 20:50:47,3860,,,JPY,,日本,支払い,ライフ 早稲田店,PayPay残高,一括,本人,25051800693
+2026/05/15 11:32:18,540,,,JPY,,日本,支払い,ミスタードーナツ 池袋店,PayPay残高,一括,本人,25051500207
+2026/05/12 18:44:36,1720,,,JPY,,日本,支払い,ローソン 早稲田通り店,PayPay残高,一括,本人,25051200466
+2026/05/09 14:21:53,2980,,,JPY,,日本,支払い,GU 新宿店,PayPay残高,一括,本人,25050900589
+2026/05/06 09:58:12,320,,,JPY,,日本,支払い,セブン-イレブン 九段下店,PayPay残高,一括,本人,25050600143
+2026/05/02 10:11:29,8900,,,JPY,,日本,請求書支払い,東京ガス,PayPay残高,一括,本人,25050200051
+2026/04/28 19:37:44,4120,,,JPY,,日本,支払い,イオン 板橋店,PayPayあと払い,一括,本人,25042800826
+2026/04/24 12:19:07,980,,,JPY,,日本,支払い,丸亀製麺 大手町店,PayPay残高,一括,本人,25042400311
+2026/04/20 21:02:51,,5000,,JPY,,日本,受け取り,わりかん精算,個人間送金,,本人,25042000009
+2026/04/16 15:48:33,6300,,,JPY,,日本,支払い,ニトリ 錦糸町店,PayPayあと払い,一括,本人,25041600742
+2026/04/12 08:55:20,168,,,JPY,,日本,支払い,セブン-イレブン 神田駅前店,PayPay残高,一括,本人,25041200155
+2026/04/08 20:26:14,2540,,,JPY,,日本,支払い,ガスト 高田馬場店,PayPay残高,一括,本人,25040800637
+2026/04/03 10:07:38,9100,,,JPY,,日本,請求書支払い,東京電力エナジーパートナー,PayPay残高,一括,本人,25040300043
+2026/03/29 18:12:56,3280,,,JPY,,日本,支払い,西友 中野店,PayPay残高,一括,本人,25032900718
+2026/03/25 13:41:22,1490,,,JPY,,日本,支払い,Netflix,PayPayあと払い,一括,本人,25032500274
+2026/03/21 09:24:45,220,,,JPY,,日本,支払い,ドトールコーヒー 秋葉原店,PayPay残高,一括,本人,25032100118
+2026/03/17 20:33:09,5680,,,JPY,,日本,支払い,鳥貴族 新宿西口店,PayPay残高,一括,本人,25031700865`;
+
+wire();
+</script>
+</body>
+</html>

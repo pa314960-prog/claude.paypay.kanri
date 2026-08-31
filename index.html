@@ -297,6 +297,37 @@ table.ledger .num{
   border-radius:7px;padding:10px 14px;background:var(--surface);font-size:12.5px;color:var(--ink-2);
 }
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ── mobile ─────────────────────────────────────────────────────────── */
+@media (max-width:640px){
+  .wrap{padding:0 12px 56px}
+  .masthead-inner{padding:14px 14px 12px;gap:10px}
+  .seal{width:32px;height:32px;font-size:16px}
+  .brand h1{font-size:19px}
+  .brand p{font-size:11.5px}
+  .masthead-actions{width:100%}
+  .masthead-actions .btn{flex:1;justify-content:center}
+  .intro{padding:22px 16px;margin-top:20px}
+  .intro h2{font-size:17px}
+  .dropzone{padding:24px 14px}
+
+  .filters{position:static;padding:10px 12px}
+  .filter-row{gap:8px 10px}
+  .field{flex:1 1 auto;min-width:0}
+  .field select,.field input:not([type="search"]){flex:1;min-width:0}
+  #f-q{width:100%}
+  .filter-summary{margin-left:0;flex:1 1 100%;text-align:right}
+
+  .btn{padding:9px 13px}
+  .segmented button{padding:9px 12px}
+  .chip{padding:7px 12px}
+
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .card{padding:14px 14px 12px}
+  .card-head .tools{width:100%;margin-left:0}
+  .card-head .tools .segmented{width:100%}
+  .card-head .tools .segmented button{flex:1}
+}
 </style>
 </head>
 <body>

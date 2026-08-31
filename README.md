@@ -17,9 +17,6 @@ GitHub Pages で公開しています（`main` ブランチのルート）。上
 2. `index.html` をブラウザで開く
 3. CSV をドラッグ＆ドロップする（複数ファイルをまとめて読み込めます）
 
-CSV を持っていない場合は、画面の「サンプルデータで試す」から動きを確認できます。
-`sample/paypay-sample.csv` は同じ内容のファイルで、ドラッグ＆ドロップの確認に使えます。
-
 ## できること
 
 - **サマリー** — 支出合計・入金合計・収支・件数・1回あたりの支出。支出合計には前月比を表示
@@ -60,7 +57,6 @@ CSV を持っていない場合は、画面の「サンプルデータで試す�
 ```
 index.html                 ツール本体（HTML / CSS / JavaScript）
 .nojekyll                  GitHub Pages で Jekyll の処理を通さないための空ファイル
-sample/paypay-sample.csv   動作確認用のサンプル明細
 scripts/build-artifact.js  Artifact 公開用の HTML を dist/ に生成する
 ```
 
